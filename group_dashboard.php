@@ -279,6 +279,10 @@ $userStmt->close();
     ?>
 
     <h4>Group Expense Summary</h4>
+<button class="btn btn-success mb-2" onclick="downloadSummaryPDF()">Download Summary as PDF</button>
+
+<!-- Wrap your summary table -->
+<div id="summary-table-container">
 <table class="table table-bordered">
     <thead>
         <tr>
@@ -323,17 +327,78 @@ $userStmt->close();
             $rate = getExchangeRate($currency, $member_currency);
             $converted = $bal * $rate;
             $converted_str = ($converted >= 0 ? '+' : '') . number_format($converted, 2) . ' ' . $member_currency;
-            echo '<td>' . $converted_str . '</td>';
+            echo '<td>' . $converted_str;
+
+            // Show QR button only if user owes money (negative balance)
+            if ($converted < 0 && isset($net_balances[$m['user_name']])) {
+                foreach ($net_balances[$m['user_name']] as $payee_username => $amount) {
+                    if ($amount > 0) {
+                        // Get payee's full name
+                        $payee_fullname = '';
+                        foreach ($members as $mm) {
+                            if ($mm['user_name'] === $payee_username) {
+                                $payee_fullname = $mm['full_name'];
+                                break;
+                            }
+                        }
+                        // Convert amount to payer's currency
+                        $payee_currency = isset($member_currencies[$m['user_name']]) ? $member_currencies[$m['user_name']] : $currency;
+                        $payee_rate = getExchangeRate($currency, $payee_currency);
+                        $converted_amount = $amount * $payee_rate;
+                        $converted_amount_str = number_format($converted_amount, 2) . ' ' . $payee_currency;
+
+                        // Prepare QR data
+                        $qr_message = $m['full_name'] . ' (' . $m['user_name'] . ') needs to pay ' .
+                                      $payee_fullname . ' (' . $payee_username . ') ' .
+                                      $converted_amount_str;
+                        $qr_data = urlencode($qr_message);
+                        $qr_url = "https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=$qr_data";
+                        $qr_id = 'qr_' . md5($m['user_name'] . $payee_username); // unique id for this QR
+
+                        // Button and hidden QR code
+                        echo '<br><button type="button" class="btn btn-sm btn-outline-primary" onclick="toggleQR(\'' . $qr_id . '\')">Show QR</button>';
+                        echo '<div id="' . $qr_id . '" style="display:none;margin-top:5px;"><img src="' . $qr_url . '" alt="QR Code" title="' . htmlspecialchars($qr_message) . '" /></div>';
+                    }
+                }
+            }
+            echo '</td>';
 
             echo '</tr>';
         }
         ?>
     </tbody>
 </table>
+</div>
 
     <a href="group.php" class="btn btn-outline-secondary mt-3">Back to My Groups</a>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script>
+function toggleQR(id) {
+    var el = document.getElementById(id);
+    if (el.style.display === "none") {
+        el.style.display = "block";
+    } else {
+        el.style.display = "none";
+    }
+}
+
+function downloadSummaryPDF() {
+    var container = document.getElementById('summary-table-container');
+    html2canvas(container).then(function(canvas) {
+        var imgData = canvas.toDataURL('image/png');
+        var pdf = new jspdf.jsPDF('p', 'mm', 'a4');
+        var pageWidth = pdf.internal.pageSize.getWidth();
+        var pageHeight = pdf.internal.pageSize.getHeight();
+        var imgWidth = pageWidth - 20;
+        var imgHeight = canvas.height * imgWidth / canvas.width;
+        pdf.addImage(imgData, 'PNG', 10, 10, imgWidth, imgHeight);
+        pdf.save('group-expense-summary.pdf');
+    });
+}
+</script>
 </body>
 </html>
 

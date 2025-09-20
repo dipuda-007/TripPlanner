@@ -76,16 +76,35 @@ while ($expenseStmt->fetch()) {
 }
 $expenseStmt->close();
 
-// Calculate balances
+// Initialize balances between each pair
 $balances = [];
-foreach ($members as $m) {
-    $balances[$m['user_name']] = 0;
+foreach ($members as $payer) {
+    foreach ($members as $receiver) {
+        if ($payer['user_name'] !== $receiver['user_name']) {
+            $balances[$payer['user_name']][$receiver['user_name']] = 0;
+        }
+    }
 }
+
+// For each expense, update balances
 foreach ($expenses as $exp) {
     foreach ($members as $m) {
         if ($m['user_name'] !== $exp['paid_by']) {
-            $balances[$m['user_name']] -= $exp['split_amount'];
-            $balances[$exp['paid_by']] += $exp['split_amount'];
+            // Each member owes split_amount to the payer
+            $balances[$m['user_name']][$exp['paid_by']] += $exp['split_amount'];
+        }
+    }
+}
+
+// Net out balances between each pair
+$net_balances = [];
+foreach ($members as $m1) {
+    foreach ($members as $m2) {
+        if ($m1['user_name'] !== $m2['user_name']) {
+            $owed = $balances[$m1['user_name']][$m2['user_name']] - $balances[$m2['user_name']][$m1['user_name']];
+            if ($owed > 0) {
+                $net_balances[$m1['user_name']][$m2['user_name']] = $owed;
+            }
         }
     }
 }
@@ -98,6 +117,12 @@ foreach ($expenses as $exp) {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body>
+<nav class="navbar navbar-light bg-light justify-content-end">
+    <span class="navbar-text me-3">
+        Logged in as: <strong><?php echo htmlspecialchars($_SESSION['user_name']); ?></strong>
+    </span>
+    <a href="logout.php" class="btn btn-outline-secondary btn-sm">Logout</a>
+</nav>
 <div class="container mt-5">
     <h2>Group Dashboard: <?php echo htmlspecialchars($group_name); ?></h2>
     <p><strong>Created by:</strong> <?php echo htmlspecialchars($creator); ?></p>
@@ -173,23 +198,105 @@ foreach ($expenses as $exp) {
 
     <h4>Expense Balances</h4>
     <?php foreach ($members as $m): ?>
-        <?php if ($m['user_name'] !== $_SESSION['user_name']): ?>
-            <?php if ($balances[$_SESSION['user_name']] < 0): ?>
+        <?php
+        if ($m['user_name'] !== $_SESSION['user_name']) {
+            $balance = $balances[$_SESSION['user_name']][$m['user_name']];
+            if ($balance < 0) {
+                ?>
                 <div class="alert alert-warning">
                     You owe <?php echo htmlspecialchars($m['full_name']); ?> (<?php echo htmlspecialchars($m['user_name']); ?>)
-                    <?php echo htmlspecialchars(abs($balances[$_SESSION['user_name']])); ?> <?php echo htmlspecialchars($currency); ?>
+                    <?php echo htmlspecialchars(abs($balance)); ?> <?php echo htmlspecialchars($currency); ?>
                 </div>
-            <?php elseif ($balances[$_SESSION['user_name']] > 0): ?>
+                <?php
+            } elseif ($balance > 0) {
+                ?>
                 <div class="alert alert-success">
                     <?php echo htmlspecialchars($m['full_name']); ?> (<?php echo htmlspecialchars($m['user_name']); ?>)
-                    owes you <?php echo htmlspecialchars($balances[$_SESSION['user_name']]); ?> <?php echo htmlspecialchars($currency); ?>
+                    owes you <?php echo htmlspecialchars($balance); ?> <?php echo htmlspecialchars($currency); ?>
                 </div>
-            <?php endif; ?>
-        <?php endif; ?>
+                <?php
+            }
+        }
+        ?>
     <?php endforeach; ?>
+
+    <h4>Who Owes Whom</h4>
+    <?php
+    foreach ($members as $m1) {
+        foreach ($members as $m2) {
+            if (
+                $m1['user_name'] !== $m2['user_name'] &&
+                isset($net_balances[$m1['user_name']][$m2['user_name']]) &&
+                $net_balances[$m1['user_name']][$m2['user_name']] > 0
+            ) {
+                echo '<div class="alert alert-warning">';
+                echo htmlspecialchars($m1['full_name']) . ' (' . htmlspecialchars($m1['user_name']) . ') owes ';
+                echo htmlspecialchars($m2['full_name']) . ' (' . htmlspecialchars($m2['user_name']) . ') ';
+                echo htmlspecialchars(number_format($net_balances[$m1['user_name']][$m2['user_name']], 2)) . ' ' . htmlspecialchars($currency);
+                echo '</div>';
+            }
+        }
+    }
+    ?>
+
+    <h4>Group Expense Summary</h4>
+<table class="table table-bordered">
+    <thead>
+        <tr>
+            <th>Member</th>
+            <th>Total Paid (<?php echo htmlspecialchars($currency); ?>)</th>
+            <th>Share of Expenses (<?php echo htmlspecialchars($currency); ?>)</th>
+            <th>Balance (<?php echo htmlspecialchars($currency); ?>)</th>
+        </tr>
+    </thead>
+    <tbody>
+        <?php
+        // Calculate total paid and share for each member
+        $total_paid = [];
+        $share = [];
+        $balance = [];
+        $member_count = count($members);
+
+        foreach ($members as $m) {
+            $total_paid[$m['user_name']] = 0;
+            $share[$m['user_name']] = 0;
+        }
+
+        foreach ($expenses as $exp) {
+            $total_paid[$exp['paid_by']] += $exp['amount'];
+            foreach ($members as $m) {
+                $share[$m['user_name']] += $exp['split_amount'];
+            }
+        }
+
+        foreach ($members as $m) {
+            $balance[$m['user_name']] = $total_paid[$m['user_name']] - $share[$m['user_name']];
+            echo '<tr>';
+            echo '<td>' . htmlspecialchars($m['full_name']) . ' (' . htmlspecialchars($m['user_name']) . ')</td>';
+            echo '<td>' . htmlspecialchars(number_format($total_paid[$m['user_name']], 2)) . '</td>';
+            echo '<td>' . htmlspecialchars(number_format($share[$m['user_name']], 2)) . '</td>';
+            $bal = $balance[$m['user_name']];
+            $bal_str = ($bal >= 0 ? '+' : '') . number_format($bal, 2);
+            echo '<td>' . $bal_str . ($bal >= 0 ? ' (is owed)' : ' (owes)') . '</td>';
+            echo '</tr>';
+        }
+        ?>
+    </tbody>
+</table>
 
     <a href="group.php" class="btn btn-outline-secondary mt-3">Back to My Groups</a>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
+
+<?php
+// Example conversion rates (1 USD to X)
+$conversion_rates = [
+    'USD' => 1,
+    'INR' => 83,      // 1 USD = 83 INR
+    'JPY' => 157,     // 1 USD = 157 JPY
+    'EUR' => 0.93,    // 1 USD = 0.93 EUR
+    // Add more as needed
+];
+?>

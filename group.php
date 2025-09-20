@@ -60,7 +60,10 @@ $grpStmt->close();
                         <strong><?php echo htmlspecialchars($group['group_name']); ?></strong>
                         <span class="text-muted"> (Created by <?php echo htmlspecialchars($group['creator']); ?>)</span>
                     </div>
-                    <a href="group_info.php?group_id=<?php echo $group['group_id']; ?>" class="btn btn-sm btn-info">View</a>
+                    <div>
+                        <a href="group_dashboard.php?group_id=<?php echo $group['group_id']; ?>" class="btn btn-sm btn-success">Open</a>
+                        <a href="group_info.php?group_id=<?php echo $group['group_id']; ?>" class="btn btn-sm btn-info">View</a>
+                    </div>
                 </li>
             <?php endforeach; ?>
         </ul>

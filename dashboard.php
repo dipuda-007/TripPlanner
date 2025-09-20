@@ -256,14 +256,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['group_name'], $_POST[
             }
         }
         $message = 'Group created successfully!';
-        header('Location: groups.php');
+        header('Location: group.php');
 
     } else {
         $message = 'Error creating group.';
     }
 }
 ?>
-<!DOCTYPE html>
+<!
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -335,9 +335,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['group_name'], $_POST[
                 <input type="text" class="form-control" id="currency" name="currency" readonly required>
             </div>
             <div class="mb-3">
-                <label for="members" class="form-label">Add Members (comma separated user names)</label>
-                <input type="text" class="form-control" id="members" name="members" placeholder="e.g. alice, bob, charlie">
+                <label class="form-label">Add Members</label>
+                <div class="input-group">
+                    <input type="text" class="form-control" id="search_user" placeholder="Enter user name">
+                    <button type="button" class="btn btn-outline-primary" id="add_member_btn">Add</button>
+                </div>
+                <div id="search_result" class="mt-2"></div>
+                <div class="member-list" id="member_list"></div>
             </div>
+            <input type="hidden" name="members" id="members_hidden">
             <button type="submit" class="btn btn-primary">Create Group</button>
         </form>
         <a href="group.php" class="btn btn-info mt-2">View My Groups & Invitations</a>
@@ -353,6 +359,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['group_name'], $_POST[
                     members.push(user);
                     updateMemberList();
                     $('#search_result').html('<span class="text-success">User added!</span>');
+                    $('#search_user').val('');
                 } else {
                     $('#search_result').html('<span class="text-danger">User not found!</span>');
                 }

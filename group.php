@@ -9,7 +9,6 @@ require_once 'db_connect.php';
 
 $user_name = $_SESSION['user_name'];
 
-// Accept invitation
 if (isset($_GET['accept']) && is_numeric($_GET['accept'])) {
     $group_id = intval($_GET['accept']);
     $stmt = $conn->prepare('UPDATE group_members SET status = "accepted" WHERE group_id = ? AND user_name = ?');
@@ -17,7 +16,6 @@ if (isset($_GET['accept']) && is_numeric($_GET['accept'])) {
     $stmt->execute();
 }
 
-// Fetch invitations
 $invStmt = $conn->prepare('SELECT gm.group_id, g.group_name, g.creator FROM group_members gm JOIN groups g ON gm.group_id = g.id WHERE gm.user_name = ? AND gm.status = "invited"');
 $invStmt->bind_param('s', $user_name);
 $invStmt->execute();
@@ -29,7 +27,6 @@ while ($invStmt->fetch()) {
 }
 $invStmt->close();
 
-// Fetch accepted groups
 $grpStmt = $conn->prepare('SELECT g.id, g.group_name, g.creator FROM group_members gm JOIN groups g ON gm.group_id = g.id WHERE gm.user_name = ? AND gm.status = "accepted"');
 $grpStmt->bind_param('s', $user_name);
 $grpStmt->execute();

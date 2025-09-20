@@ -7,7 +7,6 @@ if (!isset($_SESSION['user_name'])) {
 }
 require_once 'db_connect.php';
 
-// Country-currency mapping (copy from signup.php)
 $country_currency = [
       'Afghanistan' => 'AFN',
 'Albania' => 'ALL',
@@ -205,10 +204,8 @@ $country_currency = [
 'Yemen' => 'YER',
 'Zambia' => 'ZMW',
 'Zimbabwe' => 'ZWL',
-    // ...add all countries as in signup.php...
 ];
 
-// Handle group creation
 $message = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['group_name'], $_POST['members'], $_POST['country'], $_POST['currency'])) {
     $group_name = trim($_POST['group_name']);
@@ -216,13 +213,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['group_name'], $_POST[
     $creator = $_SESSION['user_name'];
     $country = trim($_POST['country']);
     $currency = trim($_POST['currency']);
-
-    // Insert group with country and currency
     $stmt = $conn->prepare('INSERT INTO groups (group_name, creator, country, currency) VALUES (?, ?, ?, ?)');
     $stmt->bind_param('ssss', $group_name, $creator, $country, $currency);
     if ($stmt->execute()) {
         $group_id = $stmt->insert_id;
-        // Add creator to group_members
+
         $userStmt = $conn->prepare('SELECT user_name, email, full_name FROM users WHERE user_name = ?');
         $userStmt->bind_param('s', $creator);
         $userStmt->execute();
@@ -236,8 +231,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['group_name'], $_POST[
         } else {
             $userStmt->close();
         }
-
-        // Add other members
         foreach ($members as $member) {
             if ($member !== $creator && $member !== '') {
                 $checkStmt = $conn->prepare('SELECT user_name, email, full_name FROM users WHERE user_name = ?');

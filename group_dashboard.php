@@ -14,7 +14,7 @@ if (!isset($_GET['group_id']) || !is_numeric($_GET['group_id'])) {
 
 $group_id = intval($_GET['group_id']);
 
-// Fetch group info (add more management features as needed)
+
 $stmt = $conn->prepare('SELECT group_name, creator, country, currency, created_at FROM groups WHERE id = ?');
 $stmt->bind_param('i', $group_id);
 $stmt->execute();
@@ -25,7 +25,6 @@ if (!$stmt->fetch()) {
 }
 $stmt->close();
 
-// Fetch group members
 $memStmt = $conn->prepare('SELECT user_name, email, full_name, status FROM group_members WHERE group_id = ?');
 $memStmt->bind_param('i', $group_id);
 $memStmt->execute();
@@ -48,18 +47,15 @@ if (isset($_POST['add_expense'])) {
     $description = trim($_POST['description']);
     $split = $amount / count($members);
 
-    // Correct parameter types: i (int), s (string), d (double), s (string), d (double)
     $expStmt = $conn->prepare('INSERT INTO expenses (group_id, paid_by, amount, description, split_amount) VALUES (?, ?, ?, ?, ?)');
     $expStmt->bind_param('isdsd', $group_id, $paid_by, $amount, $description, $split);
     $expStmt->execute();
     $expStmt->close();
 
-    // Reload after successful insert
     header("Location: group_dashboard.php?group_id=$group_id");
     exit();
 }
 
-// Fetch all expenses for this group
 $expenseStmt = $conn->prepare('SELECT paid_by, amount, description, split_amount FROM expenses WHERE group_id = ?');
 $expenseStmt->bind_param('i', $group_id);
 $expenseStmt->execute();
@@ -76,7 +72,6 @@ while ($expenseStmt->fetch()) {
 }
 $expenseStmt->close();
 
-// Initialize balances between each pair
 $balances = [];
 foreach ($members as $payer) {
     foreach ($members as $receiver) {
@@ -86,17 +81,14 @@ foreach ($members as $payer) {
     }
 }
 
-// For each expense, update balances
 foreach ($expenses as $exp) {
     foreach ($members as $m) {
         if ($m['user_name'] !== $exp['paid_by']) {
-            // Each member owes split_amount to the payer
             $balances[$m['user_name']][$exp['paid_by']] += $exp['split_amount'];
         }
     }
 }
 
-// Net out balances between each pair
 $net_balances = [];
 foreach ($members as $m1) {
     foreach ($members as $m2) {
@@ -251,7 +243,6 @@ foreach ($members as $m1) {
     </thead>
     <tbody>
         <?php
-        // Calculate total paid and share for each member
         $total_paid = [];
         $share = [];
         $balance = [];
@@ -291,12 +282,12 @@ foreach ($members as $m1) {
 </html>
 
 <?php
-// Example conversion rates (1 USD to X)
+
 $conversion_rates = [
     'USD' => 1,
-    'INR' => 83,      // 1 USD = 83 INR
-    'JPY' => 157,     // 1 USD = 157 JPY
-    'EUR' => 0.93,    // 1 USD = 0.93 EUR
-    // Add more as needed
+    'INR' => 83,    
+    'JPY' => 157,    
+    'EUR' => 0.93,  
+ 
 ];
 ?>

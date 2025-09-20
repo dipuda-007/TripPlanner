@@ -3,7 +3,6 @@
 session_start();
 require_once 'db_connect.php';
 
-// Country-currency mapping
 $country_currency = [
     'Afghanistan' => 'AFN',
 'Albania' => 'ALL',
@@ -202,7 +201,6 @@ $country_currency = [
 'Zambia' => 'ZMW',
 'Zimbabwe' => 'ZWL',
 
-    // Add more as needed
 ];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {

@@ -13,7 +13,6 @@ if (!isset($_GET['group_id']) || !is_numeric($_GET['group_id'])) {
 
 $group_id = intval($_GET['group_id']);
 
-// Fetch group info
 $stmt = $conn->prepare('SELECT group_name, creator, created_at FROM groups WHERE id = ?');
 $stmt->bind_param('i', $group_id);
 $stmt->execute();
@@ -24,7 +23,6 @@ if (!$stmt->fetch()) {
 }
 $stmt->close();
 
-// Fetch group members
 $memStmt = $conn->prepare('SELECT user_name, email, full_name, status FROM group_members WHERE group_id = ?');
 $memStmt->bind_param('i', $group_id);
 $memStmt->execute();

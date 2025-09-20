@@ -7,6 +7,26 @@ if (!isset($_SESSION['user_name'])) {
 }
 require_once 'db_connect.php';
 
+// --- UPDATED FUNCTION USING YOUR API ---
+function getExchangeRate($from_currency, $to_currency) {
+    if ($from_currency == $to_currency) return 1;
+    // Use your exchangerate-api.com endpoint (replace USD with $from_currency if needed)
+    $url = "https://v6.exchangerate-api.com/v6/d6e133f7d45d2ff6774610d3/latest/$from_currency";
+    $response = @file_get_contents($url);
+    if ($response !== false) {
+        $data = json_decode($response, true);
+        if (
+            isset($data['conversion_rates']) &&
+            isset($data['conversion_rates'][$to_currency]) &&
+            $data['conversion_rates'][$to_currency] > 0
+        ) {
+            return $data['conversion_rates'][$to_currency];
+        }
+    }
+    // Fallback to 1 if API fails
+    return 1;
+}
+
 if (!isset($_GET['group_id']) || !is_numeric($_GET['group_id'])) {
     echo "Invalid group ID.";
     exit();
@@ -40,6 +60,22 @@ while ($memStmt->fetch()) {
     ];
 }
 $memStmt->close();
+
+// Fetch each member's preferred currency
+$member_currencies = [];
+$usernames = array_column($members, 'user_name');
+if (count($usernames) > 0) {
+    $in = str_repeat('?,', count($usernames) - 1) . '?';
+    $types = str_repeat('s', count($usernames));
+    $stmt = $conn->prepare("SELECT user_name, currency FROM users WHERE user_name IN ($in)");
+    $stmt->bind_param($types, ...$usernames);
+    $stmt->execute();
+    $stmt->bind_result($uname, $ucurrency);
+    while ($stmt->fetch()) {
+        $member_currencies[$uname] = $ucurrency;
+    }
+    $stmt->close();
+}
 
 if (isset($_POST['add_expense'])) {
     $paid_by = $_POST['paid_by'];
@@ -100,6 +136,17 @@ foreach ($members as $m1) {
         }
     }
 }
+
+// Fetch user's preferred currency from the user table
+$user_currency = 'USD'; // Default fallback
+$userStmt = $conn->prepare('SELECT currency FROM users WHERE user_name = ?');
+$userStmt->bind_param('s', $_SESSION['user_name']);
+$userStmt->execute();
+$userStmt->bind_result($fetched_currency);
+if ($userStmt->fetch() && !empty($fetched_currency)) {
+    $user_currency = $fetched_currency;
+}
+$userStmt->close();
 ?>
 
 <!DOCTYPE html>
@@ -224,7 +271,7 @@ foreach ($members as $m1) {
                 echo '<div class="alert alert-warning">';
                 echo htmlspecialchars($m1['full_name']) . ' (' . htmlspecialchars($m1['user_name']) . ') owes ';
                 echo htmlspecialchars($m2['full_name']) . ' (' . htmlspecialchars($m2['user_name']) . ') ';
-                echo htmlspecialchars(number_format($net_balances[$m1['user_name']][$m2['user_name']], 2)) . ' ' . htmlspecialchars($currency);
+                echo htmlspecialchars(number_format($net_balances[$m1['user_name']][$m2['user_name']], 2)) . ') ';
                 echo '</div>';
             }
         }
@@ -239,6 +286,7 @@ foreach ($members as $m1) {
             <th>Total Paid (<?php echo htmlspecialchars($currency); ?>)</th>
             <th>Share of Expenses (<?php echo htmlspecialchars($currency); ?>)</th>
             <th>Balance (<?php echo htmlspecialchars($currency); ?>)</th>
+            <th>Converted Balance (Member Currency)</th>
         </tr>
     </thead>
     <tbody>
@@ -269,6 +317,14 @@ foreach ($members as $m1) {
             $bal = $balance[$m['user_name']];
             $bal_str = ($bal >= 0 ? '+' : '') . number_format($bal, 2);
             echo '<td>' . $bal_str . ($bal >= 0 ? ' (is owed)' : ' (owes)') . '</td>';
+
+            // Only show converted balance in user's currency
+            $member_currency = isset($member_currencies[$m['user_name']]) ? $member_currencies[$m['user_name']] : $currency;
+            $rate = getExchangeRate($currency, $member_currency);
+            $converted = $bal * $rate;
+            $converted_str = ($converted >= 0 ? '+' : '') . number_format($converted, 2) . ' ' . $member_currency;
+            echo '<td>' . $converted_str . '</td>';
+
             echo '</tr>';
         }
         ?>
@@ -282,12 +338,9 @@ foreach ($members as $m1) {
 </html>
 
 <?php
-
 $conversion_rates = [
     'USD' => 1,
     'INR' => 83,    
     'JPY' => 157,    
     'EUR' => 0.93,  
- 
 ];
-?>
